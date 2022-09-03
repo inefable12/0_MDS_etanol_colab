@@ -1,0 +1,212 @@
+Se modificó el pdb creado con cheminfo.org, primero insertándolo en chimera
+y luego colocándole el nombre de los 9 átomos:
+CA, CB, HA1, HA2, HB1, HB2, HB3, OH, HO
+
+También cambiándole el nombre de LIG a EtOH
+***En esas ediciones del PDB requerimos borrar también los espacios***
+
+Se ha generado un archivo "itp" donde se escribieron las restricciones (posre.itp)
+gmx pdb2gmx -f etoh_chimera.pdb -o etoh.gro -water tip5p
+
+Crear una caja cúbica con 1 nm de distancia hacia el borde
+gmx editconf -f etoh.gro -o newbox.gro -d 1.0 -bt cubic
+
+Verificamos con molden
+molden newbox.gro
+
+Agregamos agua en la nueva caja usando spc216, se va a guardar en solv.gro y 
+se actualizará la topología
+gmx_mpi solvate -cp newbox.gro -cs tip5p.gro -o solv.gro -p topol.top 
+
+Se usan los modelos de solvente que están por defecto en la carpeta:
+/usr/share/gromacs/top
+
+como tenemos 418 moleculas de agua, después de este paso, hemos entrado 
+a topol.top para editar y quedarnos solo con esas moléculas (y 1 etanol)
+
+-----IONES------
+Agregamos iones: pero antes requerimos un binario (TPR)
+gmx grompp -f ions.mdp -c solv.gro -p topol.top -o ions.tpr
+Se creo:
+(1) ions.tpr
+
+Ahora generamos un archivo gro con iones, llamado (solv_ion.gro)
+gmx genion -s ions.tpr -o solv_ions.gro -p topol.top -pname NA -nname CL -neutral
+ojo que no tenemos carga así que no se agregaron iones 
+
+-----MINIMIZAR------
+gmx grompp -f minim.mdp -c solv_ions.gro -p topol.top -o em.tpr
+Se ha creado un archivo em.tpr
+
+Aquí recién estamos minimizando
+gmx mdrun -v -deffnm em
+Fue muy rápido: 5 segundos (hizo 99 pasos)
+Se crearon los archivos: 
+(1) em.edr
+(2) em.gro
+(3) em.log
+(4) em.trr
+
+-----GRAFICANDO RESULTADOS MINIM------
+gmx energy -f em.edr -o potential.xvg
+luego seleccioné "9 0", 9 porque quería Potential y zero para salir
+
+Luego se generó un archivo potential.xvg, y abrimos con xmgrace:
+xmgrace potential.xvg
+
+-----EQUILIBRIO------
+Necesitamos 3 cosas:
+
+(1) Primero requerimos crear un archivo de índice: index.ndx
+gmx make_ndx -f em.gro -o index.ndx
+
+inicio del archivo ******************
+Reading structure file
+Going to read 0 old index file(s)
+Analysing residue names:
+There are:     1      Other residues
+There are:     1      Water residues
+Analysing residues not classified as Protein/DNA/RNA/Water and splitting into groups...
+
+  0 System              :  2099 atoms
+  1 Other               :     9 atoms
+  2 EtOH                :     9 atoms
+  3 Water               :  2090 atoms
+  4 SOL                 :  2090 atoms
+  5 non-Water           :     9 atoms
+
+ nr : group      '!': not  'name' nr name   'splitch' nr    Enter: list groups
+ 'a': atom       '&': and  'del' nr         'splitres' nr   'l': list residues
+ 't': atom type  '|': or   'keep' nr        'splitat' nr    'h': help
+ 'r': residue              'res' nr         'chain' char
+ "name": group             'case': case sensitive           'q': save and quit
+ 'ri': residue index
+
+> 2
+
+Copied index group 2 'EtOH'
+
+  6 EtOH                :     9 atoms
+
+> 4
+
+Copied index group 4 'SOL'
+
+  7 SOL                 :  2090 atoms
+
+> q
+fin del archivo ******************
+|
+|Se selecionaron: "2", luego "4" (también se podía colocar "2 | 4", sin comillas) y 
+luego "q" para guardar y salir 
+
+(2) Se descargó el archivo nvt.mdp 
+
+(3) En la fila tc-grps se editó, colocando los archivos que llamaremos:
+tc-grps                 = Other SOL ;Protein Non-Protein   ; two coupling groups - more accurate
+como no hay proteina, colocamos Other y SOL que son los 2 tipos de moleculas usadas
+
+[Ahora sí ejecutamos colocandole el index]
+gmx grompp -f nvt.mdp -c em.gro -r em.gro -p topol.top -n index.ndx -o nvt.tpr 
+(1) Se creó el archivo nvt.tpr
+
+-----NVT------
+Con el tpr podemos hacer md del nvt
+gmx mdrun -deffnm nvt
+
+Se han creado:
+(1) nvt.cpt
+(2) nvt.edr
+(3) nvt.gro
+(4) nvt.log
+(5) nvt.trr
+
+-----GRAFICANDO RESULTADOS NVT------
+gmx energy -f nvt.edr -o temperature.xvg
+15 0
+xmgrace temperature.xvg
+
+----- EQUILIBRIO FASE 2------
+Ahora equilibramos la presión, de forma análoga, descargamos npt.mdp y editamos la misma fila
+gmx grompp -f npt.mdp -c nvt.gro -r nvt.gro -t nvt.cpt -p topol.top -n index.ndx -o npt.tpr
+
+Se ha creado: (1) npt.tpr
+
+-----NPT------
+2 min aprox. (174 ns/day esto está correcto?)
+gmx mdrun-deffnm npt
+
+Se han creado:
+(1) npt.cpt
+(2) npt.edr
+(3) npt.gro
+(4) npt.log
+(5) npt.trr
+
+----GRAFICANDO RESULTADOS NPT------
+gmx energy -f npt.edr -o pressure.xvg
+17 0
+xmgrace pressure.xvg
+
+Se observa que la presión fluctúa considerablemente, entonces para ver el promedio:
+gmx energy -f npt.edr -o density.xvg
+23 0
+
+extra: Se generó también para enthalpy
+
+-----PRODUCCIÓN MD------
+descargamos el archivo md.mdp y editamos de forma análoga en tc-grps:
+tc-grps                 = Other SOL ;Protein Non-Protein   ; two coupling groups - more accurate
+
+Luego:
+gmx grompp -f md.mdp -c npt.gro -t npt.cpt -p topol.top -o md_0_1.tpr
+(1) Se generó el archivo md_0_1.tpr
+
+Corremos por fin la dinámica:
+gmx_mpi mdrun -deffnm md_0_1 (aquí falta colocarle el comando para ver el cálculo en vivo, o sea -v antes o después de -deffnm)
+90 min aprox. para 1ns (7.844 ns/day, 3 hour/ns)
+inicio 15:59
+fin 19:15
+
+-----ANÁLISIS------
+Antes de la dinámica teníamos 41 archivos y después tenemos 47
+Se han creado:
+(1) md_0_1.cpt
+(2) md_0_1.edr
+(3) md_0_1.gro
+(4) md_0_1.log
+(5) md_0_1_prev.cpt
+(6) md_0_1.xtc
+
+----ANÁLISIS------
+gmx trjconv -s md_0_1.tpr -f md_0_1.xtc -o md_0_1_noPBC.xtc -pbc mol -center
+2 (EtOH)
+0 (System)
+
+Se han creado:
+(1) md_0_1_noPBC.xtc
+
+----RMSD----
+"-tu ns" es para asegurarse de que los outputs están en nanosegundos
+
+gmx rms -s md_0_1.tpr -f md_0_1_noPBC.xtc -o rmsd.xvg -tu ns
+2
+0
+Se creó rmsd.xvg, visualizar con:
+xmgrace rmsd.xvg
+
+RMSD
+gmx rms -s em.tpr -f md_0_1_noPBC.xtc -o rmsd_xtal.xvg -tu ns
+2
+0
+Se creó rmsd_xtal.xvg, visualizar con xmgrace
+
+RADIO DE GIRO
+gmx gyrate -s md_0_1.tpr -f md_0_1_noPBC.xtc -o gyrate.xvg
+ 2
+ xmgrace gyrate.xvg
+ 
+
+
+
+
