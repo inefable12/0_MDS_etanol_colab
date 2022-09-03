@@ -1,3 +1,9 @@
+----------------------------------------------------------------------------------------------
+El siguiente texto fue ejecutado de forma local y se adaptó a un ipynb para correr desde COLAB
+----------------------------------------------------------------------------------------------
+Autor: Jesus Alvarado Huayhuaz
+------------------------------
+
 Se modificó el pdb creado con cheminfo.org, primero insertándolo en chimera
 y luego colocándole el nombre de los 9 átomos:
 CA, CB, HA1, HA2, HB1, HB2, HB3, OH, HO
