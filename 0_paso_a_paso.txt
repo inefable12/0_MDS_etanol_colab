@@ -12,23 +12,32 @@ También cambiándole el nombre de LIG a EtOH
 ***En esas ediciones del PDB requerimos borrar también los espacios***
 
 Se ha generado un archivo "itp" donde se escribieron las restricciones (posre.itp)
-gmx pdb2gmx -f etoh_chimera.pdb -o etoh.gro -water tip5p
+gmx pdb2gmx -f etoh_chimera.pdb -o etoh.gro
 
+Seleccionamos la opcion 15 que corresponde a:
+15: OPLS-AA/L all-atom force field (2001 aminoacid dihedrals)
+En seguida la opción 5 correspondiente a TIP5P:
+5: TIP5P  TIP 5-point improved for Ewald sums
+
+-----CAJA------
 Crear una caja cúbica con 1 nm de distancia hacia el borde
 gmx editconf -f etoh.gro -o newbox.gro -d 1.0 -bt cubic
 
 Verificamos con molden
 molden newbox.gro
 
-Agregamos agua en la nueva caja usando spc216, se va a guardar en solv.gro y 
+Agregamos agua en la nueva caja, se va a guardar en solv.gro y 
 se actualizará la topología
-gmx_mpi solvate -cp newbox.gro -cs tip5p.gro -o solv.gro -p topol.top 
+gmx solvate -cp newbox.gro -cs tip5p.gro -o solv.gro -p topol.top 
 
 Se usan los modelos de solvente que están por defecto en la carpeta:
 /usr/share/gromacs/top
 
-como tenemos 418 moleculas de agua, después de este paso, hemos entrado 
-a topol.top para editar y quedarnos solo con esas moléculas (y 1 etanol)
+Abre el archivo topol.top y en la parte final verifica que se adicionaron las moléculas de solvente (SOL), así:
+[ molecules ]
+; Compound        #mols
+Other               1
+SOL               418
 
 -----IONES------
 Agregamos iones: pero antes requerimos un binario (TPR)
@@ -46,7 +55,7 @@ Se ha creado un archivo em.tpr
 
 Aquí recién estamos minimizando
 gmx mdrun -v -deffnm em
-Fue muy rápido: 5 segundos (hizo 99 pasos)
+Fue muy rápido: 1 segundo (hizo 89 pasos)
 Se crearon los archivos: 
 (1) em.edr
 (2) em.gro
@@ -102,23 +111,24 @@ Copied index group 4 'SOL'
 
 > q
 fin del archivo ******************
-|
+
 |Se selecionaron: "2", luego "4" (también se podía colocar "2 | 4", sin comillas) y 
 luego "q" para guardar y salir 
 
 (2) Se descargó el archivo nvt.mdp 
 
-(3) En la fila tc-grps se editó, colocando los archivos que llamaremos:
+(3) En la fila tc-grps del archivo nvt.mdp verificar lo siguiente:
 tc-grps                 = Other SOL ;Protein Non-Protein   ; two coupling groups - more accurate
 como no hay proteina, colocamos Other y SOL que son los 2 tipos de moleculas usadas
 
-[Ahora sí ejecutamos colocandole el index]
+[Ahora sí ejecutamos colocándole el index]
 gmx grompp -f nvt.mdp -c em.gro -r em.gro -p topol.top -n index.ndx -o nvt.tpr 
 (1) Se creó el archivo nvt.tpr
 
 -----NVT------
 Con el tpr podemos hacer md del nvt
-gmx mdrun -deffnm nvt
+gmx mdrun -v -deffnm nvt
+(demoró menos de 1 minuto)
 
 Se han creado:
 (1) nvt.cpt
@@ -133,14 +143,15 @@ gmx energy -f nvt.edr -o temperature.xvg
 xmgrace temperature.xvg
 
 ----- EQUILIBRIO FASE 2------
-Ahora equilibramos la presión, de forma análoga, descargamos npt.mdp y editamos la misma fila
+Ahora equilibramos la presión, de forma análoga, descargamos npt.mdp y verificamos la misma fila
 gmx grompp -f npt.mdp -c nvt.gro -r nvt.gro -t nvt.cpt -p topol.top -n index.ndx -o npt.tpr
 
 Se ha creado: (1) npt.tpr
 
 -----NPT------
 2 min aprox. (174 ns/day esto está correcto?)
-gmx mdrun-deffnm npt
+gmx mdrun -v -deffnm npt
+(demoró menos de 1 minuto)
 
 Se han creado:
 (1) npt.cpt
@@ -161,18 +172,24 @@ gmx energy -f npt.edr -o density.xvg
 extra: Se generó también para enthalpy
 
 -----PRODUCCIÓN MD------
-descargamos el archivo md.mdp y editamos de forma análoga en tc-grps:
+descargamos el archivo md.mdp y verificamos como en los casos previos en tc-grps:
 tc-grps                 = Other SOL ;Protein Non-Protein   ; two coupling groups - more accurate
 
 Luego:
 gmx grompp -f md.mdp -c npt.gro -t npt.cpt -p topol.top -o md_0_1.tpr
 (1) Se generó el archivo md_0_1.tpr
 
-Corremos por fin la dinámica:
-gmx_mpi mdrun -deffnm md_0_1 (aquí falta colocarle el comando para ver el cálculo en vivo, o sea -v antes o después de -deffnm)
-90 min aprox. para 1ns (7.844 ns/day, 3 hour/ns)
-inicio 15:59
-fin 19:15
+Corremos la dinámica:
+gmx mdrun -v -deffnm md_0_1
+
+comentario: 
+1ra test con 8 proc: 90 min aprox. para 1ns (7.844 ns/day, 3 hour/ns)
+2do test con 6 proc (upch): inicio 10:30 | fin
+
+Back Off! I just backed up md_0_1.edr to ./#md_0_1.edr.1#
+starting mdrun 'EtOH in water'
+5000000 steps,  10000.0 ps.
+step ######, will finish Fri Apr 26 11:29:02 2024
 
 -----ANÁLISIS------
 Antes de la dinámica teníamos 41 archivos y después tenemos 47
