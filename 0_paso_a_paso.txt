@@ -183,13 +183,26 @@ Corremos la dinámica:
 gmx mdrun -v -deffnm md_0_1
 
 comentario: 
-1ra test con 8 proc: 90 min aprox. para 1ns (7.844 ns/day, 3 hour/ns)
-2do test con 6 proc (upch): inicio 10:30 | fin
+Test con 6 proc (upch): 59 minutos
 
+-----------------------------------------
+-----------------------------------------
 Back Off! I just backed up md_0_1.edr to ./#md_0_1.edr.1#
 starting mdrun 'EtOH in water'
 5000000 steps,  10000.0 ps.
 step ######, will finish Fri Apr 26 11:29:02 2024
+step 4999900, remaining wall clock time:     0 s          
+Writing final coordinates.
+
+Back Off! I just backed up md_0_1.gro to ./#md_0_1.gro.1#
+step 5000000, remaining wall clock time:     0 s          
+               Core t (s)   Wall t (s)        (%)
+       Time:    21263.806     3543.968      600.0
+                         59:03
+                 (ns/day)    (hour/ns)
+Performance:      243.795        0.098
+-----fin de la dinámica (producción)-----
+-----------------------------------------
 
 -----ANÁLISIS------
 Antes de la dinámica teníamos 41 archivos y después tenemos 47
